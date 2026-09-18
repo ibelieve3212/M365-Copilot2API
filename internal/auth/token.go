@@ -112,7 +112,17 @@ func ROPC(username, password string) (TokenSet, error) {
 	form.Set("username", username)
 	form.Set("password", password)
 	form.Set("scope", Scope())
-	return requestTokenTenant(form, Authority()+"/organizations/oauth2/v2.0/token", "ROPC", "", "")
+	// Authority() 默认以 /common 结尾，直接拼接会得到
+	// .../common/organizations/... 非法路径（微软返回空响应）。
+	// ROPC 不支持 /common，这里统一换成 /organizations。
+	base := Authority()
+	for _, s := range []string{"/common", "/organizations", "/consumers"} {
+		if strings.HasSuffix(base, s) {
+			base = strings.TrimSuffix(base, s)
+			break
+		}
+	}
+	return requestTokenTenant(form, base+"/organizations/oauth2/v2.0/token", "ROPC", "", "")
 }
 
 func requestTokenTenant(form url.Values, endpoint string, caller string, oid, tid string) (TokenSet, error) {
@@ -135,7 +145,14 @@ func requestTokenTenant(form url.Values, endpoint string, caller string, oid, ti
 	}
 	var tr tokenResponse
 	if err := json.Unmarshal(body, &tr); err != nil {
-		return TokenSet{}, fmt.Errorf("decode token response: %w", err)
+		preview := strings.TrimSpace(string(body))
+		if len(preview) > 300 {
+			preview = preview[:300] + "..."
+		}
+		if preview == "" {
+			preview = "<empty body>"
+		}
+		return TokenSet{}, fmt.Errorf("%s HTTP %d: decode token response: %v (body: %s)", caller, resp.StatusCode, err, preview)
 	}
 	if tr.Error != "" {
 		return TokenSet{}, fmt.Errorf("%s %s: %s", caller, tr.Error, tr.ErrorDesc)
