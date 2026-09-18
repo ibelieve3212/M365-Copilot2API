@@ -1,0 +1,7 @@
+.git
+.github
+data/
+secrets/
+dist/
+*.log
+.DS_Store

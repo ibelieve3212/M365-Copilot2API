@@ -1,10 +1,17 @@
 FROM golang:1.23-alpine AS build
 
+# 由 .github/workflows/docker.yml 传入；本地 build 时默认为 dev
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/m365-copilot2api ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X m365-copilot2api/internal/web.Version=${VERSION} -X m365-copilot2api/internal/web.Commit=${COMMIT} -X m365-copilot2api/internal/web.BuildTime=${BUILD_TIME}" \
+    -o /out/m365-copilot2api ./cmd/server
 
 FROM alpine:3.20
 RUN addgroup -S m365 && adduser -S -G m365 m365 \
